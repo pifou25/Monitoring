@@ -16,16 +16,9 @@
  * along with Jeedom. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* * ***************************Includes********************************* */
-//set_include_path(get_include_path() . PATH_SEPARATOR . '/usr/share/php/phpseclib');
-set_include_path(get_include_path() . get_include_path().'/phpseclib');
-include('Net/SSH2.php');
-include('Crypt/RSA.php');
-include('autoload.php');
-
-use phpseclib\Net\SSH2;
+use phpseclib3\Net\SSH2;
   
-  require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
+require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
 
 class Monitoring extends eqLogic {
 

@@ -1,6 +1,5 @@
 {
-  "apt" : {
-    "php-ssh2" : {},
-    "php-phpseclib" : {}
+  "composer" : {
+    "phpseclib/phpseclib" : {"version": 3.0}
   }
 }
