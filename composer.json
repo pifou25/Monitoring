@@ -1,0 +1,13 @@
+{
+    "name": "pifou25/monitoring",
+    "description": "Jeedom plugin for monitoring any linux distro accessible by SSH",
+    "type": "library",
+    "require": {
+        "phpseclib/phpseclib": "2.0.45"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pifou25\\Monitoring\\": "src/"
+        }
+    }
+}

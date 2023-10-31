@@ -16,6 +16,8 @@
  * along with Jeedom. If not, see <http://www.gnu.org/licenses/>.
  */
 
+require_once '../../vendor/autoload.php';
+
 use phpseclib3\Net\SSH2;
   
 require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
