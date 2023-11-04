@@ -42,7 +42,7 @@ class Monitoring extends eqLogic {
 		if (file_exists('/tmp/dependancy_monitoring_in_progress')) {
 			$return['state'] = 'in_progress';
 		} else {
-			if (exec('php -m | grep ssh2 | wc -l') != 0) {
+			if (exec('apt list --installed 2>/dev/null | grep php-phpseclib | wc -l') != 0) {
 				$return['state'] = 'ok';
 			} else {
 				$return['state'] = 'nok';
@@ -364,10 +364,10 @@ class Monitoring extends eqLogic {
 		$replace ['#Mempourcorangede#'] = $this->getConfiguration('Mempourcorangede');
 		$replace ['#Mempourcorangea#'] = $this->getConfiguration('Mempourcorangea');
 		$replace ['#Mempourcrougeinfa#'] = $this->getConfiguration('Mempourcrougeinfa');
-//		$replace ['#Swappourcvertsupa#'] = $this->getConfiguration('Swappourcvertsupa');
-//		$replace ['#Swappourcorangede#'] = $this->getConfiguration('Swappourcorangede');
-//		$replace ['#Swappourcorangea#'] = $this->getConfiguration('Swappourcorangea');
-//		$replace ['#Swappourcrougeinfa#'] = $this->getConfiguration('Swappourcrougeinfa');
+		$replace ['#Swappourcvertsupa#'] = $this->getConfiguration('Swappourcvertsupa');
+		$replace ['#Swappourcorangede#'] = $this->getConfiguration('Swappourcorangede');
+		$replace ['#Swappourcorangea#'] = $this->getConfiguration('Swappourcorangea');
+		$replace ['#Swappourcrougeinfa#'] = $this->getConfiguration('Swappourcrougeinfa');
 		$replace ['#cpu_tempvertinfa#'] = $this->getConfiguration('cpu_tempvertinfa');
 		$replace ['#cpu_temporangede#'] = $this->getConfiguration('cpu_temporangede');
 		$replace ['#cpu_temporangea#'] = $this->getConfiguration('cpu_temporangea');
@@ -432,9 +432,9 @@ class Monitoring extends eqLogic {
 		$replace['#hddused#'] = (is_object($hddused)) ? $hddused->execCmd() : '';
 		$replace['#hddusedid#'] = is_object($hddused) ? $hddused->getId() : '';
 
-		$hddpourcused = $this->getCmd(null,'hddpourcused');
-		$replace['#hddpourcused#'] = (is_object($hddpourcused)) ? $hddpourcused->execCmd() : '';
-		$replace['#hddpourcusedid#'] = is_object($hddpourcused) ? $hddpourcused->getId() : '';
+		$hddused_pourc = $this->getCmd(null,'hddpourcused');
+		$replace['#hddpourcused#'] = (is_object($hddused_pourc)) ? $hddused_pourc->execCmd() : '';
+		$replace['#hddpourcusedid#'] = is_object($hddused_pourc) ? $hddused_pourc->getId() : '';
 
 		$hddtotal = $this->getCmd(null,'hddtotal');
 		$replace['#hddtotal#'] = (is_object($hddtotal)) ? $hddtotal->execCmd() : '';
@@ -453,9 +453,9 @@ class Monitoring extends eqLogic {
 			$replace['#hddusedv2#'] = (is_object($hddusedv2)) ? $hddusedv2->execCmd() : '';
 			$replace['#hddusedv2id#'] = is_object($hddusedv2) ? $hddusedv2->getId() : '';
 
-			$hddpourcusedv2 = $this->getCmd(null,'hddpourcusedv2');
-			$replace['#hddpourcusedv2#'] = (is_object($hddpourcusedv2)) ? $hddpourcusedv2->execCmd() : '';
-			$replace['#hddpourcusedv2id#'] = is_object($hddpourcusedv2) ? $hddpourcusedv2->getId() : '';
+			$hddusedv2_pourc = $this->getCmd(null,'hddpourcusedv2');
+			$replace['#hddpourcusedv2#'] = (is_object($hddusedv2_pourc)) ? $hddusedv2_pourc->execCmd() : '';
+			$replace['#hddpourcusedv2id#'] = is_object($hddusedv2_pourc) ? $hddusedv2_pourc->getId() : '';
 
 			$hddtotalv2 = $this->getCmd(null,'hddtotalv2');
 			$replace['#hddtotalv2#'] = (is_object($hddtotalv2)) ? $hddtotalv2->execCmd() : '';
@@ -463,7 +463,6 @@ class Monitoring extends eqLogic {
 			$replace['#hddusedv2_display#'] = (is_object($hddtotalv2) && $hddtotalv2->getIsVisible()) ? "#hddusedv2_display#" : "none";
 			$replace['#synovolume2_display#'] = (is_object($hddtotalv2) && $hddtotalv2->getIsVisible()) ? "OK" : "";
 		}
-
 
 		$cnx_ssh = $this->getCmd(null,'cnx_ssh');
 		$replace['#cnx_ssh#'] = (is_object($cnx_ssh)) ? $cnx_ssh->execCmd() : '';
@@ -514,11 +513,13 @@ class Monitoring extends eqLogic {
 
 	public function getInformations() {
 
-		$Swappourccmd = '';
+		// $swap_pourc_cmd = '';
+		$bitdistri_cmd = '';
 		$uname = "Inconnu";
 		$Mem = '';
-		$mempourcusage = '';
+		$memorylibre_pourc = '';
 		$ethernet0 = '';
+		
 
 		if ($this->getConfiguration('cartereseau') == 'netautre'){
 			$cartereseau = $this->getConfiguration('cartereseauautre');
@@ -526,7 +527,7 @@ class Monitoring extends eqLogic {
 			$cartereseau = $this->getConfiguration('cartereseau');
 		}
 		$SynoV2Visible = (is_object($this->getCmd(null,'hddusedv2')) && $this->getCmd(null,'hddusedv2')->getIsVisible()) ? 'OK' : '';
-		if ($this->getConfiguration('maitreesclave') == 'deporte' && $this->getIsEnable()){
+		if ($this->getConfiguration('maitreesclave') == 'deporte' && $this->getIsEnable()) {
 			$ip = $this->getConfiguration('addressip');
 			$user = $this->getConfiguration('user');
 			$pass = $this->getConfiguration('password');
@@ -536,223 +537,183 @@ class Monitoring extends eqLogic {
 			if (!$sshconnection = new SSH2($ip,$port)) {
 				log::add('Monitoring', 'error', 'connexion SSH KO pour '.$equipement);
 				$cnx_ssh = 'KO';
-			}else{
-				if (!$sshconnection->login($user, $pass)){
+			}
+			else {
+				if (!$sshconnection->login($user, $pass)) {
 					log::add('Monitoring', 'error', 'Authentification SSH KO pour '.$equipement);
 					$cnx_ssh = 'KO';
-				}else{
+				}
+				else {
 					$cnx_ssh = 'OK';
-					$ARMvcmd = "lscpu | grep Architecture | awk '{ print $2 }'";
-					$uptimecmd = "uptime";
-					$VersionIDcmd = "awk -F'=' '/VERSION_ID/ {print $2}' /etc/os-release | awk -F'\"' '{print $2}'";
-					if($this->getConfiguration('synology') == '1'){
-						$namedistricmd = "get_key_value /etc/synoinfo.conf upnpmodelname";
-						$freecmd = "cat /proc/meminfo | cut -d':' -f2 | awk '{ print $1}' | tr '\n' ' ' | awk '{ print $1,$2,$3,$4}'";
-						$swapcmd = "free | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
-					}else{
-						$namedistricmd = "cat /etc/*-release | grep PRETTY_NAME=";
-						$freecmd = "free | grep 'Mem' | head -1 | awk '{ print $2,$3,$4,$7 }'";
-						$swapcmd = "free -h | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
-						$Swappourccmd = "free | grep 'Swap' | head -1 | awk '{ print $2,$4 }'";
+					$ARMv_cmd = "lscpu 2>/dev/null | grep Architecture | awk '{ print $2 }'";
+					$uptime_cmd = "uptime";
+
+					if($this->getConfiguration('synology') == '1') {
+						$namedistri_cmd = "cat /proc/sys/kernel/syno_hw_version 2>/dev/null";
+						$VersionID_cmd = "awk -F'=' '/productversion/ {print $2}' /etc.defaults/VERSION | tr -d '\"'";
 					}
-					$bitdistricmd = "getconf LONG_BIT";
-					$loadavgcmd = "cat /proc/loadavg";
-					$ReseauRXTXcmd = "cat /proc/net/dev | grep ".$cartereseau." | awk '{print $2,$10}'";
+					else {
+						$namedistri_cmd = "cat /etc/*-release | grep PRETTY_NAME=";
+						// $swap_pourc_cmd = "free | awk -F':' '/Swap|Partition d.échange|Échange/ { print $2 }' | awk '{ print $1,$2,$3}'";
+						$VersionID_cmd = "awk -F'=' '/VERSION_ID/ {print $2}' /etc/os-release | tr -d '\"'";
+						$bitdistri_cmd = "getconf LONG_BIT";
+					}
+
+					$memory_cmd = "free | grep 'Mem' | head -1 | awk '{ print $2,$3,$4,$7 }'";
+					$swap_cmd = "free | awk -F':' '/Swap|Partition d.échange|Échange/ { print $2 }' | awk '{ print $1,$2,$3}'";
+					
+					$loadavg_cmd = "cat /proc/loadavg";
+					
+					$ReseauRXTX_cmd = "cat /proc/net/dev | grep ".$cartereseau." | awk '{print $2,$10}'";
+					
 					$perso_1cmd = $this->getConfiguration('perso1');
 					$perso_2cmd = $this->getConfiguration('perso2');
 
-					$ARMvoutput = $sshconnection->exec($ARMvcmd);
-					$ARMv = $ARMvoutput;
-					$ARMv = trim($ARMv);
+					$ARMv = trim($sshconnection->exec($ARMv_cmd));
 
-					$uptimeoutput = $sshconnection->exec($uptimecmd);
-					$uptime = $uptimeoutput;
+					$uptime = $sshconnection->exec($uptime_cmd);
 
-					$VersionIDoutput = $sshconnection->exec($VersionIDcmd);
-					$VersionID = $VersionIDoutput;
+					$VersionID = trim($sshconnection->exec($VersionID_cmd));
+					
+					$namedistri = $sshconnection->exec($namedistri_cmd);
+					$bitdistri = $sshconnection->exec($bitdistri_cmd);
 
-					$namedistrioutput = $sshconnection->exec($namedistricmd);
-					$namedistri = $namedistrioutput;
+					$loadav = $sshconnection->exec($loadavg_cmd);
 
-					$bitdistrioutput = $sshconnection->exec($bitdistricmd);
-					$bitdistri = $bitdistrioutput;
+					$ReseauRXTX = $sshconnection->exec($ReseauRXTX_cmd);
 
-					$loadavgoutput = $sshconnection->exec($loadavgcmd);
-					$loadav = $loadavgoutput;
+					$memory = $sshconnection->exec($memory_cmd);
+					$swap = $sshconnection->exec($swap_cmd);
+					// $Swappourc = $sshconnection->exec($swap_pourc_cmd);
 
-					$ReseauRXTXoutput = $sshconnection->exec($ReseauRXTXcmd);
-					$ReseauRXTX = $ReseauRXTXoutput;
+					$perso_1 = $sshconnection->exec($perso_1cmd);
+					$perso_2 = $sshconnection->exec($perso_2cmd);
 
-					//$closesession = $sshconnection->exec('exit');
-					//stream_get_contents($closesession);
-					//close ssh ($connection);
+					if($this->getConfiguration('synology') == '1') {
+						$platform_cmd = "get_key_value /etc/synoinfo.conf unique | cut -d'_' -f2";
+						$synoplatorm = $sshconnection->exec($platform_cmd);
 
-					//$connection = new SSH2($ip,$port);
-					//ssh2_auth_password($connection,$user,$pass);
+						$nbcpuARM_cmd = "cat /proc/sys/kernel/syno_CPU_info_core";
+						$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 
-					$freeoutput = $sshconnection->exec($freecmd);
-					$free = $freeoutput;
-
-					$swapoutput = $sshconnection->exec($swapcmd);
-					$swap = $swapoutput;
-
-					$Swappourcoutput = $sshconnection->exec($Swappourccmd);
-					$Swappourc = $Swappourcoutput;
-
-					$perso1output = $sshconnection->exec($perso_1cmd);
-					$perso_1 = $perso1output;
-
-					$perso2output = $sshconnection->exec($perso_2cmd);
-					$perso_2 = $perso2output;
-
-					if($this->getConfiguration('synology') == '1'){
-						$platformcmd = "get_key_value /etc/synoinfo.conf unique | cut -d'_' -f2";
-						$platformoutput = $sshconnection->exec($platformcmd);
-						$synoplatorm = $platformoutput;
-
-						$nbcpuARMcmd = "cat /proc/sys/kernel/syno_CPU_info_core";
-						$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-						$nbcpu = $nbcpuoutput;
-						$nbcpu = trim($nbcpu);
-
-						$cpufreq0ARMcmd = "cat /proc/sys/kernel/syno_CPU_info_clock";
-						$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-						$cpufreq0 = $cpufreq0output;
-						$cpufreq0 = trim($cpufreq0);
-
-						$hddcmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
-						$hdddata = $sshconnection->exec($hddcmd);
-						$hdd = $hdddata;
-
-						//$closesession = $sshconnection->exec('exit');
-						//stream_get_contents($closesession);
-						//close ssh ($connection);
-
-						//$connection = new SSH2($ip,$port);
-						//ssh2_auth_password($connection,$user,$pass);
-
-						$versionsynocmd = "cat /etc.defaults/VERSION | cut -d'=' -f2 | cut -d'=' -f2 | tr '\n' ' ' | awk '{ print $1,$2,$4,$5}'";
-						$versionsynooutput = $sshconnection->exec($versionsynocmd);
-						$versionsyno = $versionsynooutput;
-
-						$synocmdTemp='$(find /sys/devices/* -name temp*_input | head -1)';
-						if($this->getconfiguration('syno_use_temp_path'))$synocmdTemp=$this->getconfiguration('syno_temp_path');
+						$cpufreq0ARM_cmd = "cat /proc/sys/kernel/syno_CPU_info_clock";
+						$cpufreq0 = trim($sshconnection->exec($cpufreq0ARM_cmd));
 						
+						// $hdd_cmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
+						$hdd_cmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }'";
+						$hdd = $sshconnection->exec($hdd_cmd);
 
-						$cputemp0cmd = "timeout 3 cat ".$synocmdTemp;
-						log::add(__CLASS__,"debug", "commande temp syno : ".$cputemp0cmd);
+						$versionsyno_cmd = "cat /etc.defaults/VERSION | cut -d'=' -f2 | cut -d'=' -f2 | tr '\n' ' ' | awk '{ print $3,$4,$5,$7,$9}'";
+						$versionsyno = $sshconnection->exec($versionsyno_cmd);
+
+						$synotemp_cmd='$(find /sys/devices/* -name temp*_input | head -1)';
+						if($this->getconfiguration('syno_use_temp_path')) $synotemp_cmd=$this->getconfiguration('syno_temp_path');				
+
+						$cputemp0_cmd = "timeout 3 cat ".$synotemp_cmd;
+						log::add("Monitoring","debug", "commande temp syno : ".$cputemp0_cmd);
+						$cputemp0 = $sshconnection->exec($cputemp0_cmd);
+					
+						if($this->getConfiguration('synology') == '1' && $SynoV2Visible == 'OK' && $this->getConfiguration('synologyv2') == '1') {
+							// $hddv2cmd = "df -h | grep 'vg1001\|volume2' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1"; // DSM 5.x & 6.x
+							$hddv2cmd = "df -h | grep 'vg1001\|volume2' | head -1 | awk '{ print $2,$3,$5 }'"; // DSM 5.x & 6.x
+							$hddv2 = $sshconnection->exec($hddv2cmd);
+						}
+					}	
+					elseif ($ARMv == 'armv6l') {
+						$nbcpuARM_cmd = "lscpu | grep 'CPU(s):' | awk '{ print $2 }'";
+						$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 						
-						$cputemp0output = $sshconnection->exec($cputemp0cmd);
-						$cputemp0 =$cputemp0output;
-					}
-					if($this->getConfiguration('synology') == '1' && $SynoV2Visible == 'OK' && $this->getConfiguration('synologyv2') == '1'){
-						$hddv2cmd = "df -h | grep 'vg1001\|volume2' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1"; // DSM 5.x & 6.x
-						$hdddatav2 = $sshconnection->exec($hddv2cmd);
-						$hddv2 = $hdddatav2;
-					}
-					if ($ARMv == 'armv6l'){
-						$nbcpuARMcmd = "lscpu | grep 'CPU(s):' | awk '{ print $2 }'";
-						$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-						$nbcpu = $nbcpuoutput;
-						$nbcpu = trim($nbcpu);
 						$uname = '.';
 
-						$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-						$hdddata = $sshconnection->exec($hddcmd);
-						$hdd = $hdddata;
+						$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+						$hdd = $sshconnection->exec($hdd_cmd);
 
-						$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-						$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-						$cpufreq0 = $cpufreq0output;
+						$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null";
+						$cpufreq0 = $sshconnection->exec($cpufreq0ARM_cmd);
 
-						$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-						if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-							$cputemp0armv6lcmd = "cat /sys/class/thermal/thermal_zone0/temp";
-							$cputemp0output = $sshconnection->exec($cputemp0armv6lcmd);
-							$cputemp0 = $cputemp0output;
+						$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+						if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+							$cputemp0armv6l_cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";
+							$cputemp0 = $sshconnection->exec($cputemp0armv6l_cmd);
 						}
 
-					}elseif ($ARMv == 'armv7l' || $ARMv == 'aarch64' || $ARMv == 'mips64'){
-						$nbcpuARMcmd = "lscpu | grep '^CPU(s):' | awk '{ print $2 }'";
-						$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-						$nbcpu = $nbcpuoutput;
-						$nbcpu = trim($nbcpu);
+					}
+					elseif ($ARMv == 'armv7l' || $ARMv == 'aarch64' || $ARMv == 'mips64'){
+						$nbcpuARM_cmd = "lscpu | grep '^CPU(s):' | awk '{ print $2 }'";
+						$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
+						
 						$uname = '.';
 
-						$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-						$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-						$cpufreq0 = $cpufreq0output;
-						$cpufreq0 = trim($cpufreq0);
+						$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null";
+						$cpufreq0 = trim($sshconnection->exec($cpufreq0ARM_cmd));
 
-						$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-						$hdddata = $sshconnection->exec($hddcmd);
-						$hdd = $hdddata;
+						$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+						$hdd = $sshconnection->exec($hdd_cmd);
 
-						$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-						if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-							$cputemp0RPi2cmd = "cat /sys/class/thermal/thermal_zone0/temp";	// OK RPi2
-							$cputemp0output = $sshconnection->exec($cputemp0RPi2cmd);
-							$cputemp0 = $cputemp0output;
+						$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+						if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+							$cputemp0RPi2_cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";	// OK RPi2
+							$cputemp0 = $sshconnection->exec($cputemp0RPi2_cmd);
 
 							if ($cputemp0 == '') {
-								$cputemp0armv7lcmd = "cat /sys/devices/platform/sunxi-i2c.0/i2c-0/0-0034/temp1_input"; // OK Banana Pi (Cubie surement un jour...)
-								$cputemp0output = $sshconnection->exec($cputemp0armv7lcmd);
-								$cputemp0 = $cputemp0output;
+								$cputemp0armv7l_cmd = "cat /sys/devices/platform/sunxi-i2c.0/i2c-0/0-0034/temp1_input 2>/dev/null"; // OK Banana Pi (Cubie surement un jour...)
+								$cputemp0 = $sshconnection->exec($cputemp0armv7l_cmd);
 							}
 						}
 
-					}elseif ($ARMv == 'i686' || $ARMv == 'x86_64' || $ARMv == 'i386'){
+					}
+					elseif ($ARMv == 'i686' || $ARMv == 'x86_64' || $ARMv == 'i386'){
 						$NF = '';
 						$cputemp0 ='';
 						$uname = '.';
-						$nbcpuVMcmd = "lscpu | grep 'Processeur(s)' | awk '{ print $NF }'"; // OK pour Debian
-						$cpufreqVMcmd = "lscpu | grep 'Vitesse du processeur en MHz' | awk '{print $NF}'"; // OK pour Debian/Ubuntu
+						
+						$nbcpuVM_cmd = "lscpu | grep 'Processeur(s)' | awk '{ print $NF }'"; // OK pour Debian
+						$nbcpu = $sshconnection->exec($nbcpuVM_cmd);
 
-						$nbcpuoutput = $sshconnection->exec($nbcpuVMcmd);
-						$nbcpu = $nbcpuoutput;
-						if ($nbcpu == ''){
-							$nbcpuVMbiscmd = "lscpu | grep '^CPU(s)' | awk '{ print $NF }'"; // OK pour LXC Linux/Ubuntu
-							$nbcpuoutput = $sshconnection->exec($nbcpuVMbiscmd);
-							$nbcpu = $nbcpuoutput;
+						if ($nbcpu == '') {
+							$nbcpuVMbis_cmd = "lscpu | grep '^CPU(s):' | awk '{ print $2 }'"; // OK pour LXC Linux/Ubuntu
+							$nbcpu = $sshconnection->exec($nbcpuVMbis_cmd);
 						}
 						$nbcpu = preg_replace("/[^0-9]/","",$nbcpu);
 
-						$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-						$hdddata = $sshconnection->exec($hddcmd);
-						$hdd = $hdddata;
+						$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+						$hdd = $sshconnection->exec($hdd_cmd);
 
-						$cpufreqoutput = $sshconnection->exec($cpufreqVMcmd);
-						$cpufreq = $cpufreqoutput;
-						if ($cpufreq == ''){
-							$cpufreqVMbiscmd = "lscpu | grep '^CPU MHz' | awk '{ print $NF }'";	// OK pour LXC Linux
-							$cpufreqoutput = $sshconnection->exec($cpufreqVMbiscmd);
-							$cpufreq = $cpufreqoutput;
+						$cpufreqVM_cmd = "lscpu | grep 'Vitesse du processeur en MHz' | awk '{print $NF}'"; // OK pour Debian/Ubuntu, mais pas Ubuntu 22.04
+						$cpufreq = $sshconnection->exec($cpufreqVM_cmd);
+
+						if ($cpufreq == '') {
+							$cpufreqVMbis_cmd = "lscpu | grep '^CPU MHz' | awk '{ print $NF }'";	// OK pour LXC Linux
+							$cpufreq = $sshconnection->exec($cpufreqVMbis_cmd);
+						}
+						if ($cpufreq == '') {
+							$cpufreqVMbis_cmd = "cat /proc/cpuinfo | grep '^cpu MHz' | head -1 | cut -d':' -f2 | awk '{ print $NF }'";	// OK pour Debian 10/11, Ubuntu 22.04
+							$cpufreq = $sshconnection->exec($cpufreqVMbis_cmd);
 						}
 						$cpufreq=preg_replace("/[^0-9.]/","",$cpufreq);
 
-						$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-						if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-							$cputemp0cmd = "cat /sys/devices/virtual/thermal/thermal_zone0/temp";	// OK Dell WYSE
-							$cputemp0output = $sshconnection->exec($cputemp0cmd);
-							$cputemp0 = $cputemp0output;
+						$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+						if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+							$cputemp0_cmd = "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null";	// OK Dell WYSE
+							$cputemp0 = $sshconnection->exec($cputemp0_cmd);
+
 							if ($cputemp0 == '') {
-								$cputemp0cmd = "cat /sys/devices/platform/coretemp.0/hwmon/hwmon0/temp?_input";	// OK AOpen DE2700
-								$cputemp0output = $sshconnection->exec($cputemp0cmd);
-								$cputemp0 = $cputemp0output;
+								$cputemp0_cmd = "cat /sys/devices/platform/coretemp.0/hwmon/hwmon0/temp?_input 2>/dev/null";	// OK AOpen DE2700
+								$cputemp0 = $sshconnection->exec($cputemp0_cmd);
+								
 							}
 							if ($cputemp0 == '') {
-								$cputemp0AMDcmd = "cat /sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon0/temp1_input";	// OK AMD Ryzen
-								$cputemp0output = $sshconnection->exec($cputemp0AMDcmd);
-								$cputemp0 = $cputemp0output;
+								$cputemp0AMD_cmd = "cat /sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon0/temp1_input 2>/dev/null";	// OK AMD Ryzen
+								$cputemp0 = $sshconnection->exec($cputemp0AMD_cmd);
 							}
 							if ($cputemp0 == '') {
-								$cputemp0sensorscmd = "sensors | awk '{if (match($0, \"MB Temperature\")){printf(\"%f\",$3);} }'"; // OK by sensors
-								$cputemp0output = $sshconnection->exec($cputemp0sensorscmd);
-								$cputemp0 = $cputemp0output;
+								$cputemp0sensors_cmd = "sensors 2>/dev/null | awk '{if (match($0, \"MB Temperature\")){printf(\"%f\",$3);} }'"; // OK by sensors
+								$cputemp0 = $sshconnection->exec($cputemp0sensors_cmd);
 							}
 						}
 
-					}elseif ($ARMv == '' & $this->getConfiguration('synology') != '1'){
+					}
+					elseif ($ARMv == '' & $this->getConfiguration('synology') != '1') {
 						$unamecmd = "uname -a | awk '{print $2,$1}'";
 						$unamedata = $sshconnection->exec($unamecmd);
 						$uname = $unamedata;
@@ -761,162 +722,148 @@ class Monitoring extends eqLogic {
 							$bitdistri = '32';
 							$ARMv = 'arm';
 
-							$nbcpuARMcmd = "grep 'model name' /proc/cpuinfo | wc -l";
-							$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-							$nbcpu = $nbcpuoutput;
-							$nbcpu = trim($nbcpu);
+							$nbcpuARM_cmd = "grep 'model name' /proc/cpuinfo | wc -l";
+							$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 
-							$hddcmd = "df -h | grep '/dev/mmcblk0p2' | head -1 | awk '{ print $2,$3,$5 }'";
-							$hdddata = $sshconnection->exec($hddcmd);
-							$hdd = $hdddata;
+							$hdd_cmd = "df -h | grep '/dev/mmcblk0p2' | head -1 | awk '{ print $2,$3,$5 }'";
+							$hdd = $sshconnection->exec($hdd_cmd);
 
-							$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-							$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-							$cpufreq0 = $cpufreq0output;
+							$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null";
+							$cpufreq0 = $sshconnection->exec($cpufreq0ARM_cmd);
 
-							$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-							if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-								$cputemp0armv6lcmd = "cat /sys/class/thermal/thermal_zone0/temp";
-								$cputemp0output = $sshconnection->exec($cputemp0armv6lcmd);
-								$cputemp0 = $cputemp0output;
+							$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+							if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+								$cputemp0armv6l_cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";
+								$cputemp0 = $sshconnection->exec($cputemp0armv6l_cmd);
 							}
 
-						}elseif (preg_match("#osmc#", $namedistri)) {
+						}
+						elseif (preg_match("#osmc#", $namedistri)) {
 							$bitdistri = '32';
 							$ARMv = 'arm';
 
-							$nbcpuARMcmd = "grep 'model name' /proc/cpuinfo | wc -l";
-							$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-							$nbcpu = $nbcpuoutput;
-							$nbcpu = trim($nbcpu);
+							$nbcpuARM_cmd = "grep 'model name' /proc/cpuinfo | wc -l";
+							$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 
-							$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-							$hdddata = $sshconnection->exec($hddcmd);
-							$hdd = $hdddata;
+							$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+							$hdd = $sshconnection->exec($hdd_cmd);
 
-							$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-							$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-							$cpufreq0 = $cpufreq0output;
+							$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null";
+							$cpufreq0 = $sshconnection->exec($cpufreq0ARM_cmd);
 
-							$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-							if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-								$cputemp0armv6lcmd = "cat /sys/class/thermal/thermal_zone0/temp";
-								$cputemp0output = $sshconnection->exec($cputemp0armv6lcmd);
-								$cputemp0 = $cputemp0output;
+							$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+							if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+								$cputemp0armv6l_cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";
+								$cputemp0 = $sshconnection->exec($cputemp0armv6l_cmd);
 							}
-						}elseif (preg_match("#piCorePlayer#", $uname)) {
+						}
+						elseif (preg_match("#piCorePlayer#", $uname)) {
 							$bitdistri = '32';
 							$ARMv = 'arm';
-							$namedistricmd = "uname -a | awk '{print $2,$3}'";
-							$namedistrioutput = $sshconnection->exec($namedistricmd);
-							$namedistri = $namedistrioutput;
+							$namedistri_cmd = "uname -a | awk '{print $2,$3}'";
+							$namedistri = $sshconnection->exec($namedistri_cmd);
 
-							$nbcpuARMcmd = "grep 'model name' /proc/cpuinfo | wc -l";
-							$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-							$nbcpu = $nbcpuoutput;
-							$nbcpu = trim($nbcpu);
+							$nbcpuARM_cmd = "grep 'model name' /proc/cpuinfo | wc -l";
+							$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 
-							$hddcmd = "df -h | grep /dev/mmcblk0p | head -1 | awk '{print $2,$3,$5 }'";
-							$hdddata = $sshconnection->exec($hddcmd);
-							$hdd = $hdddata;
+							$hdd_cmd = "df -h | grep /dev/mmcblk0p | head -1 | awk '{print $2,$3,$5 }'";
+							$hdd = $sshconnection->exec($hdd_cmd);
 
-							$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-							$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-							$cpufreq0 = $cpufreq0output;
+							$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null";
+							$cpufreq0 = $sshconnection->exec($cpufreq0ARM_cmd);
 
-							$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-							if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-								$cputemp0armv6lcmd = "cat /sys/class/thermal/thermal_zone0/temp";
-								$cputemp0output = $sshconnection->exec($cputemp0armv6lcmd);
-								$cputemp0 = $cputemp0output;
+							$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+							if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+								$cputemp0armv6l_cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";
+								$cputemp0 = $sshconnection->exec($cputemp0armv6l_cmd);
 							}
 
-						}elseif (preg_match("#FreeBSD#", $uname)) {
-							$namedistricmd = "uname -a | awk '{ print $1,$3}'";
-							$namedistrioutput = $sshconnection->exec($namedistricmd);
-							$namedistri = $namedistrioutput;
+						}
+						elseif (preg_match("#FreeBSD#", $uname)) {
+							$namedistri_cmd = "uname -a | awk '{ print $1,$3}'";
+							$namedistri = $sshconnection->exec($namedistri_cmd);
 
-							$ARMvcmd = "sysctl hw.machine | awk '{ print $2}'";
-							$ARMvoutput = $sshconnection->exec($ARMvcmd);
-							$ARMv = $ARMvoutput;
-							$ARMv = trim($ARMv);
+							$ARMv_cmd = "sysctl hw.machine | awk '{ print $2}'";
+							$ARMv = trim($sshconnection->exec($ARMv_cmd));
 
-							$loadavgcmd = "uptime | awk '{print $8,$9,$10}'";
-							$loadavgoutput = $sshconnection->exec($loadavgcmd);
-							$loadav = $loadavgoutput;
+							$loadavg_cmd = "uptime | awk '{print $8,$9,$10}'";
+							$loadav = $sshconnection->exec($loadavg_cmd);
 
-							//$closesession = $sshconnection->exec('exit');
-							//stream_get_contents($closesession);
-							//close ssh ($connection);
+							$memory_cmd = "dmesg | grep Mem | tr '\n' ' ' | awk '{print $4,$10}'";
+							$memory = $sshconnection->exec($memory_cmd);
 
-							//$connection = new SSH2($ip,$port);
-							//ssh2_auth_password($connection,$user,$pass);
+							$bitdistri_cmd = "sysctl kern.smp.maxcpus | awk '{ print $2}'";
+							$bitdistri = $sshconnection->exec($bitdistri_cmd);
 
-							$freecmd = "dmesg | grep memory | tr '\n' ' ' | awk '{print $4,$10}'";
-							$freeoutput = $sshconnection->exec($freecmd);
-							$free = $freeoutput;
+							$nbcpuARM_cmd = "sysctl hw.ncpu | awk '{ print $2}'";
+							$nbcpu = trim($sshconnection->exec($nbcpuARM_cmd));
 
-							$bitdistricmd = "sysctl kern.smp.maxcpus | awk '{ print $2}'";
-							$bitdistrioutput = $sshconnection->exec($bitdistricmd);
-							$bitdistri = $bitdistrioutput;
+							$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+							$hdd = $sshconnection->exec($hdd_cmd);
 
-							$nbcpuARMcmd = "sysctl hw.ncpu | awk '{ print $2}'";
-							$nbcpuoutput = $sshconnection->exec($nbcpuARMcmd);
-							$nbcpu = $nbcpuoutput;
-							$nbcpu = trim($nbcpu);
+							$cpufreq0ARM_cmd = "sysctl -a | egrep -E 'cpu.0.freq' | awk '{ print $2}'";
+							$cpufreq0 = $sshconnection->exec($cpufreq0ARM_cmd);
 
-							$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-							$hdddata = $sshconnection->exec($hddcmd);
-							$hdd = $hdddata;
-
-							$cpufreq0ARMcmd = "sysctl -a | egrep -E 'cpu.0.freq' | awk '{ print $2}'";
-							$cpufreq0output = $sshconnection->exec($cpufreq0ARMcmd);
-							$cpufreq0 = $cpufreq0output;
-
-							$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-							if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-								$cputemp0armv6lcmd = "sysctl -a | egrep -E 'cpu.0.temp' | awk '{ print $2}'";
-								$cputemp0output = $sshconnection->exec($cputemp0armv6lcmd);
-								$cputemp0 = $cputemp0output;
+							$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+							if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+								$cputemp0armv6l_cmd = "sysctl -a | egrep -E 'cpu.0.temp' | awk '{ print $2}'";
+								$cputemp0 = $sshconnection->exec($cputemp0armv6l_cmd);
 							}
 						}
 					}
 				}
 			}
-		}elseif($this->getConfiguration('maitreesclave') == 'local' && $this->getIsEnable()){
+		}
+		elseif($this->getConfiguration('maitreesclave') == 'local' && $this->getIsEnable()) {
 			$cnx_ssh = 'No';
-			$uptimecmd = "uptime";
-			if($this->getConfiguration('synology') == '1'){
-				$namedistricmd = "get_key_value /etc/synoinfo.conf upnpmodelname";
-				$freecmd = "cat /proc/meminfo | cut -d':' -f2 | awk '{ print $1}' | tr '\n' ' ' | awk '{ print $1,$2,$3,$4}'";
-				$swapcmd = "free | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
-//				$hddcmd = "df -h | grep 'volume1' | head -1 | awk '{ print $2,$3,$5 }' | cut -d'%' -f1";
-				$hddcmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
-			}else{
-				$ARMvcmd = "lscpu | grep Architecture | awk '{ print $2 }'";
-				$namedistricmd = "cat /etc/*-release | grep PRETTY_NAME=";
-				$VersionIDcmd = "awk -F'=' '/VERSION_ID/ {print $2}' /etc/os-release | awk -F'\"' '{print $2}'";
-				$freecmd = "free | grep 'Mem' | head -1 | awk '{ print $2,$3,$4,$7 }'";
-				$swapcmd = "free -h | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
-				$Swappourccmd = "free | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
-				$hddcmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
-				$bitdistricmd = "getconf LONG_BIT";
-				$ARMv = exec($ARMvcmd);
-				$bitdistri = exec($bitdistricmd);
+			$uptime_cmd = "uptime";
+			
+
+			if($this->getConfiguration('synology') == '1') {
+				$namedistri_cmd = "cat /proc/sys/kernel/syno_hw_version 2>/dev/null";
+				// $memory_cmd = "cat /proc/meminfo | cut -d':' -f2 | awk '{ print $1}' | tr '\n' ' ' | awk '{ print $1,$2,$3,$4}'";
+				// $swap_cmd = "free | grep 'Swap' | head -1 | awk '{ print $2,$3,$4 }'";
+				// $hdd_cmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
+				$hdd_cmd = "df -h | grep 'vg1000\|volume1' | head -1 | awk '{ print $2,$3,$5 }'";
+				$VersionID_cmd = "awk -F'=' '/productversion/ {print $2}' /etc.defaults/VERSION | tr -d '\"'";
 			}
-			$loadavgcmd = "cat /proc/loadavg";
-			$ReseauRXTXcmd = "cat /proc/net/dev | grep ".$cartereseau." | awk '{print $2,$10}'";
+			else {
+				$ARMv_cmd = "lscpu | grep Architecture | awk '{ print $2 }'";
+				$namedistri_cmd = "cat /etc/*-release | grep PRETTY_NAME=";
+				$VersionID_cmd = "awk -F'=' '/VERSION_ID/ {print $2}' /etc/os-release | tr -d '\"'";
+				
+				// $memory_cmd = "free | grep 'Mem' | head -1 | awk '{ print $2,$3,$4,$7 }'";
+				// $swap_cmd = "free -h | awk -F':' '/Swap|Partition d.échange|Échange/ { print $2 }' | awk '{ print $1,$2,$3}'";
+				// $swap_pourc_cmd = "free | awk -F':' '/Swap|Partition d.échange|Échange/ { print $2 }' | awk '{ print $1,$2,$3}'";
+				
+				$hdd_cmd = "df -h | grep '/$' | head -1 | awk '{ print $2,$3,$5 }'";
+				$bitdistri_cmd = "getconf LONG_BIT";
+				
+				$ARMv = exec($ARMv_cmd);
+				$bitdistri = exec($bitdistri_cmd);
+			}
+
+			$memory_cmd = "free | grep 'Mem' | head -1 | awk '{ print $2,$3,$4,$7 }'";
+			$swap_cmd = "free | awk -F':' '/Swap|Partition d.échange|Échange/ { print $2 }' | awk '{ print $1,$2,$3}'";
+
+			$loadavg_cmd = "cat /proc/loadavg";
+
+			$ReseauRXTX_cmd = "cat /proc/net/dev | grep ".$cartereseau." | awk '{print $2,$10}'";
+
 			$perso_1cmd = $this->getConfiguration('perso1');
 			$perso_2cmd = $this->getConfiguration('perso2');
-			$uptime = exec($uptimecmd);
-			$namedistri = exec($namedistricmd);
-			$VersionID = exec($VersionIDcmd);
-			$loadav = exec($loadavgcmd);
-			$ReseauRXTX = exec($ReseauRXTXcmd);
-			$hdd = exec($hddcmd);
-			$free = exec($freecmd);
-			$swap = exec($swapcmd);
-			$Swappourc = exec($Swappourccmd);
+
+			$uptime = exec($uptime_cmd);
+
+			$namedistri = exec($namedistri_cmd);
+			$VersionID = trim(exec($VersionID_cmd));
+			$loadav = exec($loadavg_cmd);
+			$ReseauRXTX = exec($ReseauRXTX_cmd);
+			$hdd = exec($hdd_cmd);
+			$memory = exec($memory_cmd);
+			$swap = exec($swap_cmd);
+			// $Swappourc = exec($swap_pourc_cmd);
+			
 			if ($perso_1cmd != '') {
 				$perso_1 = exec ($perso_1cmd);
 			}
@@ -926,94 +873,131 @@ class Monitoring extends eqLogic {
 
 			if($this->getConfiguration('synology') == '1'){
 				$uname = '.';
-				$nbcpuARMcmd = "cat /proc/sys/kernel/syno_CPU_info_core";
-				$cpufreq0ARMcmd = "cat /proc/sys/kernel/syno_CPU_info_clock";
-				$versionsynocmd = "cat /etc.defaults/VERSION | cut -d'=' -f2 | cut -d'=' -f2 | tr '\n' ' ' | awk '{ print $1,$2,$4,$5}'";
-				$nbcpu = exec($nbcpuARMcmd);
-				$cpufreq0 = exec($cpufreq0ARMcmd);
-				$versionsyno = exec($versionsynocmd);
-			}
-			if($this->getConfiguration('synology') == '1' && $SynoV2Visible == 'OK' && $this->getConfiguration('synologyv2') == '1'){
-				$hddv2cmd = "df -h | grep 'vg1001' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
-				$hddv2 = exec($hddv2cmd);
+				$nbcpuARM_cmd = "cat /proc/sys/kernel/syno_CPU_info_core";
+				$cpufreq0ARM_cmd = "cat /proc/sys/kernel/syno_CPU_info_clock";
+				$versionsyno_cmd = "cat /etc.defaults/VERSION | cut -d'=' -f2 | cut -d'=' -f2 | tr '\n' ' ' | awk '{ print $3,$4,$5,$7,$9}'";
+				
+				$nbcpu = exec($nbcpuARM_cmd);
+				$cpufreq0 = exec($cpufreq0ARM_cmd);
+				$versionsyno = exec($versionsyno_cmd);
 
-			}elseif ($ARMv == 'armv6l'){
-				$uname = '.';
-				$nbcpuARMcmd = "lscpu | grep 'CPU(s):' | awk '{ print $2 }'";
-				$nbcpu = exec($nbcpuARMcmd);
-				$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-				$cpufreq0 = exec($cpufreq0ARMcmd);
-				$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-				if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-					$cputemp0armv6lcmd = "cat /sys/class/thermal/thermal_zone0/temp";
-					$cputemp0 = exec($cputemp0armv6lcmd);
+				if($this->getConfiguration('synology') == '1' && $SynoV2Visible == 'OK' && $this->getConfiguration('synologyv2') == '1') {
+					$hddv2cmd = "df -h | grep 'vg1001' | head -1 | awk '{ print $2,$3,$5 }' | cut -d '%' -f1";
+					$hddv2 = exec($hddv2cmd);
 				}
-			}elseif ($ARMv == 'armv7l' || $ARMv == 'aarch64'){
+			}
+			elseif ($ARMv == 'armv6l') {
 				$uname = '.';
-				$nbcpuARMcmd = "lscpu | grep '^CPU(s):' | awk '{ print $2 }'";
-				$nbcpu = exec($nbcpuARMcmd);
-				$cpufreq0ARMcmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
-				$cpufreq0 = exec($cpufreq0ARMcmd);
-				$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-				if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-					$cputemp0RPi2cmd = "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null";	// OK RPi2/3, Odroid
-					$cputemp0 = exec($cputemp0RPi2cmd);
-					if ($cputemp0 == '') {
-						$cputemp0armv7lcmd = "cat /sys/devices/platform/sunxi-i2c.0/i2c-0/0-0034/temp1 2>/dev/null"; // OK Banana Pi (Cubie surement un jour...)
-						$cputemp0 = exec($cputemp0armv7lcmd);
+
+				$nbcpuARM_cmd = "lscpu | grep 'CPU(s):' | awk '{ print $2 }'";
+				$nbcpu = exec($nbcpuARM_cmd);
+				
+				if (file_exists('/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq')) {
+					$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
+					$cpufreq0 = exec($cpufreq0ARM_cmd);
+				}
+				$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+				if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+					if (file_exists('/sys/class/thermal/thermal_zone0/temp')) {
+						$cputemp0armv6l_cmd = "cat /sys/class/thermal/thermal_zone0/temp";
+						$cputemp0 = exec($cputemp0armv6l_cmd);
 					}
 				}
+			}
+			elseif ($ARMv == 'armv7l' || $ARMv == 'aarch64') {
+				$uname = '.';
+				$cputemp0 = '';
+				$cpufreq0 = '';
 
-			}elseif ($ARMv == 'i686' || $ARMv == 'x86_64' || $ARMv == 'i386'){
+				$nbcpuARM_cmd = "lscpu | grep '^CPU(s):' | awk '{ print $2 }'";
+				$nbcpu = exec($nbcpuARM_cmd);
+				
+				if (file_exists('/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq')) {
+					$cpufreq0ARM_cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
+					$cpufreq0 = exec($cpufreq0ARM_cmd);
+				}
+				
+				$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+				if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+					if (file_exists('/sys/class/thermal/thermal_zone0/temp')) {
+						$cputemp0RPi2_cmd = "cat /sys/class/thermal/thermal_zone0/temp";	// OK RPi2/3, Odroid
+						$cputemp0 = exec($cputemp0RPi2_cmd);
+					}
+					if ($cputemp0 == '') {
+						if (file_exists('/sys/devices/platform/sunxi-i2c.0/i2c-0/0-0034/temp1')) {
+							$cputemp0armv7l_cmd = "cat /sys/devices/platform/sunxi-i2c.0/i2c-0/0-0034/temp1"; // OK Banana Pi (Cubie surement un jour...)
+							$cputemp0 = exec($cputemp0armv7l_cmd);
+						}
+					}
+				}
+			}
+			elseif ($ARMv == 'i686' || $ARMv == 'x86_64' || $ARMv == 'i386') {
 				$NF = '';
 				$uname = '.';
 				$cputemp0 = '';
-				$nbcpuVMcmd = "lscpu | grep 'Processeur(s)' | awk '{ print $NF }'"; // OK pour Debian
-				$cpufreqVMcmd = "lscpu | grep 'Vitesse du processeur en MHz' | awk '{print $NF}'"; // OK pour Debian/Ubuntu
-				$nbcpu = exec($nbcpuVMcmd);
+				$cpufreq = '';
+
+				$nbcpuVM_cmd = "lscpu | grep 'Processeur(s)' | awk '{ print $NF }'"; // OK pour Debian
+				$nbcpu = exec($nbcpuVM_cmd);
+
 				if ($nbcpu == ''){
-					$nbcpuVMbiscmd = "lscpu | grep '^CPU(s)' | awk '{ print $NF }'"; // OK pour LXC Linux/Ubuntu
-					$nbcpu = exec($nbcpuVMbiscmd);
+					$nbcpuVMbis_cmd = "lscpu | grep '^CPU(s):' | awk '{ print $NF }'"; // OK pour LXC Linux/Ubuntu
+					$nbcpu = exec($nbcpuVMbis_cmd);
 				}
 				$nbcpu = preg_replace("/[^0-9]/","",$nbcpu);
-				$cpufreq = exec($cpufreqVMcmd);
+				
+				$cpufreqVM_cmd = "lscpu | grep 'Vitesse du processeur en MHz' | awk '{print $NF}'"; // OK pour Debian/Ubuntu, mais pas Ubuntu 22.04
+				$cpufreq = exec($cpufreqVM_cmd);
+				
 				if ($cpufreq == ''){
-					$cpufreqVMbiscmd = "lscpu | grep '^CPU MHz' | awk '{ print $NF }'";	// OK pour LXC Linux
-					$cpufreq = exec($cpufreqVMbiscmd);
+					$cpufreqVMbis_cmd = "lscpu | grep '^CPU MHz' | awk '{ print $NF }'";	// OK pour LXC Linux
+					$cpufreq = exec($cpufreqVMbis_cmd);
+				}
+				if ($cpufreq == ''){
+					$cpufreqVMbis_cmd = "cat /proc/cpuinfo | grep '^cpu MHz' | head -1 | cut -d':' -f2 | awk '{ print $NF }'";	// OK pour Debian 10/11, Ubuntu 22.04
+					$cpufreq = exec($cpufreqVMbis_cmd);
 				}
 				$cpufreq = preg_replace("/[^0-9.]/","",$cpufreq);
-				$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-				if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
+				
+				$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+				if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
 					if (file_exists('/sys/devices/virtual/thermal/thermal_zone0/temp')) {
-						$cputemp0RPi2cmd = "cat /sys/devices/virtual/thermal/thermal_zone0/temp"; // OK Dell Whyse
-						$cputemp0 = exec($cputemp0RPi2cmd);
+						$cputemp0RPi2_cmd = "cat /sys/devices/virtual/thermal/thermal_zone0/temp"; // OK Dell Whyse
+						$cputemp0 = exec($cputemp0RPi2_cmd);
 					}
+				
 					if ($cputemp0 == '') {
-						$cputemp0AOpencmd = "cat /sys/devices/platform/coretemp.0/hwmon/hwmon0/temp?_input";	// OK AOpen DE2700
-						$cputemp0 = exec($cputemp0AOpencmd);
+						if (file_exists('/sys/devices/platform/coretemp.0/hwmon/hwmon0/temp?_input')) {
+							$cputemp0AOpen_cmd = "cat /sys/devices/platform/coretemp.0/hwmon/hwmon0/temp?_input";	// OK AOpen DE2700
+							$cputemp0 = exec($cputemp0AOpen_cmd);
+						}
 					}
+				
 					if ($cputemp0 == '') {
-						$cputemp0AMDcmd = "cat /sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon0/temp1_input";	// OK AMD Ryzen
-						$cputemp0 = exec($cputemp0AMDcmd);
+						if (file_exists('/sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon0/temp1_input')) {
+							$cputemp0AMD_cmd = "cat /sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon0/temp1_input";	// OK AMD Ryzen
+							$cputemp0 = exec($cputemp0AMD_cmd);
+						}
 					}
 				}
 			}
 		}
 		if (isset($cnx_ssh)) {
-			if($this->getConfiguration('maitreesclave') == 'local' || $cnx_ssh == 'OK'){
+			if($this->getConfiguration('maitreesclave') == 'local' || $cnx_ssh == 'OK') {
 				if($this->getConfiguration('synology') == '1'){
 					if (isset($versionsyno)) {
 						$versionsyno = str_ireplace('"', '', $versionsyno);
 						$versionsyno = explode(' ', $versionsyno);
-						if (isset($versionsyno[0]) && isset($versionsyno[1]) && isset($versionsyno[2]) && isset($versionsyno[3])) {
-							$versionsyno = 'DSM '.$versionsyno[0].'.'.$versionsyno[1].'-'.$versionsyno[2].' Update '.$versionsyno[3];
+						if (isset($versionsyno[0]) && isset($versionsyno[1]) && isset($versionsyno[2]) && isset($versionsyno[3]) && isset($versionsyno[4])) {
+							$versionsyno = 'DSM '.$versionsyno[0].'.'.$versionsyno[1].'.'.$versionsyno[2].'-'.$versionsyno[3].' Update '.$versionsyno[4];
 						}
 						if (isset($namedistri) && isset($versionsyno)) {
 							$namedistri = trim($namedistri);
 							$namedistri = $versionsyno.' ('.$namedistri.')';
 						}
 					}
-				}else{
+				}
+				else {
 					if (isset($namedistri)) {
 						$namedistrifin = str_ireplace('PRETTY_NAME="', '', $namedistri);
 						$namedistrifin = str_ireplace('"', '', $namedistrifin);
@@ -1022,13 +1006,14 @@ class Monitoring extends eqLogic {
 						}
 					}
 				}
+				
 				if($SynoV2Visible == 'OK' && $this->getConfiguration('synology') == '1' && $this->getConfiguration('synologyv2') == '1'){
 					if (isset($hddv2)) {
 						$hdddatav2 = explode(' ', $hddv2);
 						if (isset($hdddatav2[0]) && isset($hdddatav2[1]) && isset($hdddatav2[2])) {
 							$hddtotalv2 = $hdddatav2[0];
 							$hddusedv2 = $hdddatav2[1];
-							$hddpourcusedv2 = preg_replace("/[^0-9.]/","",$hdddatav2[2]);
+							$hddusedv2_pourc = preg_replace("/[^0-9.]/","",$hdddatav2[2]);
 						}
 					}
 				}
@@ -1042,7 +1027,8 @@ class Monitoring extends eqLogic {
 						$datauptime = str_replace(":", "h", $datauptime);
 						if (strpos($datauptime[0], 'jour(s)') === false){
 							$uptime = $datauptime[0];
-						}else{
+						}
+						else {
 							if (isset($datauptime[0]) && isset($datauptime[1])) {
 								$uptime = $datauptime[0].' et '.$datauptime[1];
 							}
@@ -1059,113 +1045,180 @@ class Monitoring extends eqLogic {
 					}
 				}
 
-				if (isset($free)) {
+				if (isset($memory)) {
 					if (!preg_match("#FreeBSD#", $uname)) {
-						$free = explode(' ', $free);
+						$memory = explode(' ', $memory);
 						if($this->getConfiguration('synology') == '1'){
-							if (isset($free[1]) && isset($free[3])) {
-								$freelibre = $free[1] + $free[3];
+							if (isset($memory[3])) {
+								$memorylibre = intval($memory[3]);
+								log::add('Monitoring', 'debug', '[Memory] Version Syno ('.$VersionID.') / Mémoire Libre = '.$memorylibre);
 							}
 						}
-						if($VersionID >= 9 && isset($free[3])){
-							$freelibre = $free[3];
-						}
-						elseif($VersionID < 9 && isset($free[2]) && isset($free[3])){
-							$freelibre = $free[2] + $free[3];
-						}
-						if (isset($free[0]) && isset($freelibre)) {
-							$mempourcusage = round($freelibre / $free[0] * 100);
-						}
-						$Swappourc = explode(' ', $Swappourc);
-						if ($Swappourc[0] != '0' && $Swappourc[0] != ''){
-							if (isset($Swappourc[0])) {
-								$Swappourcusage = round($Swappourc[1] / $Swappourc[0] * 100, 2);
+						else {
+							if (isset($memory[3])) {
+								$memorylibre = intval($memory[3]);
+								log::add('Monitoring', 'debug', '[Memory] Version Linux ('.$VersionID.') / Mémoire Libre = '.$memorylibre);
 							}
 						}
-						if (isset($freelibre)) {
-							if (($freelibre / 1000) > 1000) {
-								$freelibre = round($freelibre / 1000000, 2) . " Go";
-							}else{
-								$freelibre = round($freelibre / 1000) . " Mo";
+						/* elseif(intval($VersionID) >= 9 && isset($memory[3])){
+							$memorylibre = intval($memory[3]);
+							log::add('Monitoring', 'debug', '[Memory] VersionID ('.$VersionID.') >= 9 et Free3 ok : '.$memorylibre.' / '.$memory[3]);
+						}
+						elseif(intval($VersionID) < 9 && isset($memory[2]) && isset($memory[3])){
+							$memorylibre = intval($memory[2]) + intval($memory[3]);
+							log::add('Monitoring', 'debug', 'Version ('.$VersionID.') < 9 et Free2 et Free3 ok : '.$memorylibre.' / '.$memory[2].' / '.$memory[3]);
+						} */
+						
+						if (isset($memory[0]) && isset($memorylibre)) {
+							if (intval($memory[0]) != 0) {
+								$memorylibre_pourc = round(intval($memorylibre) / intval($memory[0]) * 100);
+								log::add('Monitoring', 'debug', '[Memory] Memorylibre% = '.$memorylibre_pourc);
+							}
+							else {
+								$memorylibre_pourc = 0;
 							}
 						}
-						if (isset($free[0])) {
-							if (($free[0] / 1000) > 1000) {
-								$memtotal = round($free[0] / 1000000, 2) . " Go";
-							}else{
-								$memtotal = round($free[0] / 1000) . " Mo";
+
+						if (isset($memorylibre)) {
+							if ((intval($memorylibre) / 1024) > 1024) {
+								$memorylibre = round(intval($memorylibre) / 1048576, 2) . " Go";
+							}
+							else {
+								$memorylibre = round(intval($memorylibre) / 1024) . " Mo";
 							}
 						}
-						if (isset($memtotal) && isset($freelibre)) {
-							$Mem = 'Total : '.$memtotal.' - Libre : '.$freelibre;
+						if (isset($memory[0])) {
+							if ((intval($memory[0]) / 1024) > 1024) {
+								$memtotal = round(intval($memory[0]) / 1048576, 2) . " Go";
+							}
+							else {
+								$memtotal = round(intval($memory[0]) / 1024, 2) . " Mo";
+							}
 						}
-					}elseif (preg_match("#FreeBSD#", $uname)) {
-						$free = explode(' ', $free);
-						$mempourcusage = round($free[1] / $free[0] * 100);
-						if (($free[1] / 1000) > 1000) {
-							$freelibre = round($free[1] / 1000000, 2) . " Go";
-						}else{
-							$freelibre = round($free[1] / 1000) . " Mo";
+						if (isset($memtotal) && isset($memorylibre)) {
+							$Mem = 'Total : '.$memtotal.' - Libre : '.$memorylibre;
 						}
-						if (($free[0] / 1000) > 1000) {
-							$memtotal = round($free[0] / 1000000, 2) . " Go";
-						}else{
-							$memtotal = round($free[0] / 1000) . " Mo";
+					}
+					elseif (preg_match("#FreeBSD#", $uname)) {
+						$memory = explode(' ', $memory);
+						if (isset($memory[0]) && isset($memory[1])) {
+							if (intval($memory[0]) != 0) {
+								$memorylibre_pourc = round(intval($memory[1]) / intval($memory[0]) * 100);
+							}
+							else {
+								$memorylibre_pourc = 0;
+							}
 						}
-						$Mem = 'Total : '.$memtotal.' - Libre : '.$freelibre;
+						if ((intval($memory[1]) / 1024) > 1024) {
+							$memorylibre = round(intval($memory[1]) / 1048576, 2) . " Go";
+						}
+						else{
+							$memorylibre = round(intval($memory[1]) / 1024) . " Mo";
+						}
+						if (($memory[0] / 1024) > 1024) {
+							$memtotal = round(intval($memory[0]) / 1048576, 2) . " Go";
+						}
+						else{
+							$memtotal = round(intval($memory[0]) / 1024) . " Mo";
+						}
+						$Mem = 'Total : '.$memtotal.' - Libre : '.$memorylibre;
 					}
 				}
-				else {$free = '';}
+				else {
+					$Mem = '';
+				}
 
 				if (isset($swap)) {
 					$swap = explode(' ', $swap);
-					if($this->getConfiguration('synology') == '1'){
-						if(isset($swap[0])){
-							if (($swap[0] / 1000) > 1000) {
-								$swap[0] = round($swap[0] / 1000000, 2) . " Go";
-							}else{
-								$swap[0] = round($swap[0] / 1000) . " Mo";
-							}
+
+					if(isset($swap[0]) && isset($swap[2])) {
+						if (intval($swap[0]) != 0) {
+							$swaplibre_pourc = round(intval($swap[2]) / intval($swap[0]) * 100);
 						}
-						if(isset($swap[1])){
-							if (($swap[1] / 1000) > 1000) {
-								$swap[1] = round($swap[1] / 1000000, 2) . " Go";
-							}else{
-								$swap[1] = round($swap[1] / 1000) . " Mo";
-							}
-						}
-						if(isset($swap[2])){
-							if (($swap[2] / 1000) > 1000) {
-								$swap[2] = round($swap[2] / 1000000, 2) . " Go";
-							}else{
-								$swap[2] = round($swap[2] / 1000) . " Mo";
-							}
+						else {
+							$swaplibre_pourc = 0;
 						}
 					}
+
+					if(isset($swap[0])){
+						if ((intval($swap[0]) / 1024) > 1024) {
+							$swap[0] = round(intval($swap[0]) / 1048576, 2) . " Go";
+						}
+						else {
+							$swap[0] = round(intval($swap[0]) / 1024, 2) . " Mo";
+						}
+					}
+					if(isset($swap[1])) {
+						if ((intval($swap[1]) / 1024) > 1024) {
+							$swap[1] = round(intval($swap[1]) / 1048576, 2) . " Go";
+						}
+						else {
+							$swap[1] = round(intval($swap[1]) / 1024, 2) . " Mo";
+						}
+					}
+					if(isset($swap[2])){
+						if ((intval($swap[2]) / 1024) > 1024) {
+							$swap[2] = round(intval($swap[2]) / 1048576, 2) . " Go";
+						}
+						else {
+							$swap[2] = round(intval($swap[2]) / 1024, 2) . " Mo";
+						}
+					}
+
 					if(isset($swap[0]) && isset($swap[1]) && isset($swap[2])){
 						$swap[0] = str_replace("B"," o", $swap[0]);
 						$swap[1] = str_replace("B"," o", $swap[1]);
 						$swap[2] = str_replace("B"," o", $swap[2]);
 						$Memswap = 'Total : '.$swap[0].' - Utilisé : '.$swap[1].' - Libre : '.$swap[2];
 					}
-				}else {$swap = '';}
+
+					/* $Swappourc = explode(' ', $Swappourc);
+					if (isset($Swappourc[0]) && isset($Swappourc[1]))
+					{
+						log::add('Monitoring', 'debug', 'Variable Swappourc[0] = '.$Swappourc[0].' / Swappourc[1] = '.$Swappourc[1]);
+						if (intval($Swappourc[0]) != 0){
+							$swaplibre_pourc = round(intval($Swappourc[1]) / intval($Swappourc[0]) * 100, 2);
+						if (intval($memory[0]) != 0) {
+							$memorylibre_pourc = round(intval($memorylibre) / intval($memory[0]) * 100);
+							log::add('Monitoring', 'debug', '[Memory] Memorylibre% = '.$memorylibre_pourc);
+						}
+						else {
+							$swaplibre_pourc = 0;
+							$memorylibre_pourc = 0;
+						}
+					} */
+				} 
+				else {
+					$Memswap = '';
+				}
 
 				if (isset($ReseauRXTX)) {
 					$ReseauRXTX = explode(' ', $ReseauRXTX);
 					if(isset($ReseauRXTX[0]) && isset($ReseauRXTX[1])){
-						if (($ReseauRXTX[1] / 1000) > 1000000) {
-							$ReseauTX = round($ReseauRXTX[1] / 1000000000, 2) . " Go";
-						}elseif (($ReseauRXTX[1] / 1000) > 1000) {
-							$ReseauTX = round($ReseauRXTX[1] / 1000000, 2) . " Mo";
-						}else{
-							$ReseauTX = round($ReseauRXTX[1] / 1000) . " Ko";
+						if ((intval($ReseauRXTX[1]) / 1024) > 1073741824) {
+							$ReseauTX = round(intval($ReseauRXTX[1]) / 1099511627776, 2) . " To";
 						}
-						if (($ReseauRXTX[0] / 1000) > 1000000) {
-							$ReseauRX = round($ReseauRXTX[0] / 1000000000, 2) . " Go";
-						}elseif (($ReseauRXTX[0] / 1000) > 1000) {
-							$ReseauRX = round($ReseauRXTX[0] / 1000000, 2) . " Mo";
-						}else{
-							$ReseauRX = round($ReseauRXTX[0] / 1000) . " Ko";
+                      	elseif ((intval($ReseauRXTX[1]) / 1024) > 1048576) {
+							$ReseauTX = round(intval($ReseauRXTX[1]) / 1073741824, 2) . " Go";
+						}
+						elseif ((intval($ReseauRXTX[1]) / 1024) > 1024) {
+							$ReseauTX = round(intval($ReseauRXTX[1]) / 1048576, 2) . " Mo";
+						}
+						else {
+							$ReseauTX = round(intval($ReseauRXTX[1]) / 1024) . " Ko";
+						}
+						
+						if ((intval($ReseauRXTX[0]) / 1024) > 1073741824) {
+							$ReseauRX = round(intval($ReseauRXTX[0]) / 1099511627776, 2) . " To";
+						}
+						elseif ((intval($ReseauRXTX[0]) / 1024) > 1048576) {
+							$ReseauRX = round(intval($ReseauRXTX[0]) / 1073741824, 2) . " Go";
+						}
+						elseif ((intval($ReseauRXTX[0]) / 1024) > 1024) {
+							$ReseauRX = round(intval($ReseauRXTX[0]) / 1048576, 2) . " Mo";
+						}
+						else {
+							$ReseauRX = round(intval($ReseauRXTX[0]) / 1024) . " Ko";
 						}
 						$ethernet0 = 'TX : '.$ReseauTX.' - RX : '.$ReseauRX;
 					}
@@ -1173,68 +1226,74 @@ class Monitoring extends eqLogic {
 
 				$hddtotal = '';
 				$hddused = '';
-				$hddpourcused = '';
+				$hddused_pourc = '';
 				if (isset($hdd)) {
 					$hdddata = explode(' ', $hdd);
 					if(isset($hdddata[0]) && isset($hdddata[1]) && isset($hdddata[2])){
 						$hddtotal = str_replace(array("K","M","G","T"),array(" Ko"," Mo"," Go"," To"), $hdddata[0]);
 						$hddused = str_replace(array("K","M","G","T"),array(" Ko"," Mo"," Go"," To"), $hdddata[1]);
-						$hddpourcused = preg_replace("/[^0-9.]/","",$hdddata[2]);
-						$hddpourcused = trim($hddpourcused);
-						if ($hddpourcused < '10'){
-							$hddpourcused = '0'.$hddpourcused;
+						$hddused_pourc = preg_replace("/[^0-9.]/","",$hdddata[2]);
+						$hddused_pourc = trim($hddused_pourc);
+						if ($hddused_pourc < '10') {
+							$hddused_pourc = '0'.$hddused_pourc; // A quoi sert certe conversion ?
 						}
 					}
 				}
 
 				if (isset($ARMv)) {
 					if ($ARMv == 'i686' || $ARMv == 'x86_64' || $ARMv == 'i386'){
-						if (($cpufreq / 1000) > 1) {
-							$cpufreq = round($cpufreq / 1000, 1, PHP_ROUND_HALF_UP) . " GHz";
-						}else{
+						if ((floatval($cpufreq) / 1024) > 1) {
+							$cpufreq = round(floatval($cpufreq) / 1000, 1, PHP_ROUND_HALF_UP) . " GHz";
+						}
+						else {
 							$cpufreq = $cpufreq . " MHz";
 						}
-						$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-						if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-							if ($cputemp0 != 0 & $cputemp0 > 200){
-								$cputemp0 = $cputemp0 / 1000;
-								$cputemp0 = round($cputemp0, 1);
+						
+						$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+						if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+							if (floatval($cputemp0) > 200){
+								$cputemp0 = floatval($cputemp0) / 1000;
+								$cputemp0 = round(floatval($cputemp0), 1);
 							}
 						}
 						$cpu = $nbcpu.' - '.$cpufreq;
-					}elseif ($ARMv == 'armv6l' || $ARMv == 'armv7l' || $ARMv == 'aarch64' || $ARMv == 'mips64'){
-						if (($cpufreq0 / 1000) > 1000) {
-							$cpufreq0 = round($cpufreq0 / 1000000, 1, PHP_ROUND_HALF_UP) . " GHz";
-						}else{
-							$cpufreq0 = round($cpufreq0 / 1000) . " MHz";
+					}
+					elseif ($ARMv == 'armv6l' || $ARMv == 'armv7l' || $ARMv == 'aarch64' || $ARMv == 'mips64'){
+						if ((floatval($cpufreq0) / 1000) > 1000) {
+							$cpufreq0 = round(floatval($cpufreq0) / 1000000, 1, PHP_ROUND_HALF_UP) . " GHz";
 						}
-						$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-						if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-							if ($cputemp0 != 0 & $cputemp0 > 200){
-								$cputemp0 = $cputemp0 / 1000;
-								$cputemp0 = round($cputemp0, 1);
+						else {
+							$cpufreq0 = round(floatval($cpufreq0) / 1000) . " MHz";
+						}
+						
+						$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+						if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+							if (floatval($cputemp0) > 200){
+								$cputemp0 = floatval($cputemp0) / 1000;
+								$cputemp0 = round(floatval($cputemp0), 1);
 							}
 						}
-						if ($cpufreq0 == 0){
+						if (floatval($cpufreq0) == 0) {
 							$cpu = $nbcpu.' Socket(s) ';
 							$cpufreq0 = '';
-						}else{
+						}
+						else {
 							$cpu = $nbcpu.' - '.$cpufreq0;
 						}
-
-
-					}elseif ($ARMv == 'arm'){
+					}
+					elseif ($ARMv == 'arm') {
 						if (preg_match("#RasPlex|OpenELEC|osmc|LibreELEC#", $namedistri) || preg_match("#piCorePlayer#", $uname)) {
-							if (($cpufreq0 / 1000) > 1000) {
-								$cpufreq0 = round($cpufreq0 / 1000000, 1, PHP_ROUND_HALF_UP) . " GHz";
-							}else{
-								$cpufreq0 = round($cpufreq0 / 1000) . " MHz";
+							if ((floatval($cpufreq0) / 1000) > 1000) {
+								$cpufreq0 = round(floatval($cpufreq0) / 1000000, 1, PHP_ROUND_HALF_UP) . " GHz";
 							}
-							$cpuTempCmd = $this->getCmd(null,'cpu_temp');
-							if (is_object($cpuTempCmd) && $cpuTempCmd->getIsVisible() == 1) {
-								if ($cputemp0 != 0 & $cputemp0 > 200){
-									$cputemp0 = $cputemp0 / 1000;
-									$cputemp0 = round($cputemp0, 1);
+							else {
+								$cpufreq0 = round(floatval($cpufreq0) / 1000) . " MHz";
+							}
+							$cputemp_cmd = $this->getCmd(null,'cpu_temp');
+							if (is_object($cputemp_cmd) && $cputemp_cmd->getIsVisible() == 1) {
+								if (floatval($cputemp0) > 200){
+									$cputemp0 = floatval($cputemp0) / 1000;
+									$cputemp0 = round(floatval($cputemp0), 1);
 								}
 							}
 							$cpu = $nbcpu.' - '.$cpufreq0;
@@ -1243,27 +1302,28 @@ class Monitoring extends eqLogic {
 				}
 
 				if($this->getConfiguration('synology') == '1'){
-					if (($cpufreq0 / 1000) > 1) {
-						$cpufreq0 = round($cpufreq0 / 1000, 1, PHP_ROUND_HALF_UP) . " GHz";
-					}else{
+					if ((floatval($cpufreq0) / 1000) > 1) {
+						$cpufreq0 = round(floatval($cpufreq0) / 1000, 1, PHP_ROUND_HALF_UP) . " GHz";
+					}
+					else{
 						$cpufreq0 = $cpufreq0 . " MHz";
 					}
-					if ($cputemp0 != 0 & $cputemp0 > 200){
-						$cputemp0 = $cputemp0 / 1000;
-						$cputemp0 = round($cputemp0, 1);
+					if (floatval($cputemp0) > 200){
+						$cputemp0 = floatval($cputemp0) / 1000;
+						$cputemp0 = round(floatval($cputemp0), 1);
 					}
 					$cpu = $nbcpu.' - '.$cpufreq0;
 				}
 				if (empty($cputemp0)) {$cputemp0 = '';}
 				if (empty($perso_1)) {$perso_1 = '';}
 				if (empty($perso_2)) {$perso_2 = '';}
-				if (empty($Memswap)) {$Memswap = '';}
 				if (empty($cnx_ssh)) {$cnx_ssh = '';}
-				if (empty($Swappourccmd)) {$Swappourccmd = '';}
+				// if (empty($swap_pourc_cmd)) {$swap_pourc_cmd = '';}
 				if (empty($uname)) {$uname = 'Inconnu';}
-				if (empty($Swappourcusage)) {$Swappourcusage = '';}
 				if (empty($Mem)) {$Mem = '';}
-				if (empty($mempourcusage)) {$mempourcusage = '';}
+				if (empty($memorylibre_pourc)) {$memorylibre_pourc = '';}
+				if (empty($Memswap)) {$Memswap = '';}
+				if (empty($swaplibre_pourc)) {$swaplibre_pourc = '';}
 
 				$dataresult = array(
 					'namedistri' => $namedistri,
@@ -1275,13 +1335,13 @@ class Monitoring extends eqLogic {
 					'ethernet0' => $ethernet0,
 					'hddtotal' => $hddtotal,
 					'hddused' => $hddused,
-					'hddpourcused' => $hddpourcused,
+					'hddpourcused' => $hddused_pourc,
 					'cpu' => $cpu,
 					'cpu_temp' => $cputemp0,
 					'cnx_ssh' => $cnx_ssh,
 					'Mem_swap' => $Memswap,
-					'Mempourc' => $mempourcusage,
-					'Swappourc' => $Swappourcusage,
+					'Mempourc' => $memorylibre_pourc,
+					'Swappourc' => $swaplibre_pourc,
 					'perso1' => $perso_1,
 					'perso2' => $perso_2,
 				);
@@ -1289,53 +1349,65 @@ class Monitoring extends eqLogic {
 					$dataresultv2 = array(
 						'hddtotalv2' => $hddtotalv2,
 						'hddusedv2' => $hddusedv2,
-						'hddpourcusedv2' => $hddpourcusedv2,
+						'hddpourcusedv2' => $hddusedv2_pourc,
 					);
 				}
+
 				$namedistri = $this->getCmd(null,'namedistri');
 				if(is_object($namedistri)){
 					$namedistri->event($dataresult['namedistri']);
 				}
+
 				$uptime = $this->getCmd(null,'uptime');
 				if(is_object($uptime)){
 					$uptime->event($dataresult['uptime']);
 				}
+
 				$loadavg1mn = $this->getCmd(null,'loadavg1mn');
 				if(is_object($loadavg1mn)){
 					$loadavg1mn->event($dataresult['loadavg1mn']);
 				}
+
 				$loadavg5mn = $this->getCmd(null,'loadavg5mn');
 				if(is_object($loadavg5mn)){
 					$loadavg5mn->event($dataresult['loadavg5mn']);
 				}
+
 				$loadavg15mn = $this->getCmd(null,'loadavg15mn');
 				if(is_object($loadavg15mn)){
 					$loadavg15mn->event($dataresult['loadavg15mn']);
 				}
+
 				$Mem = $this->getCmd(null,'Mem');
 				if(is_object($Mem)){
 					$Mem->event($dataresult['Mem']);
 				}
+
 				$Mem_swap = $this->getCmd(null,'Mem_swap');
 				if(is_object($Mem_swap)){
 					$Mem_swap->event($dataresult['Mem_swap']);
 				}
+
 				$ethernet0 = $this->getCmd(null,'ethernet0');
 				if(is_object($ethernet0)){
 					$ethernet0->event($dataresult['ethernet0']);
 				}
+
 				$hddtotal = $this->getCmd(null,'hddtotal');
 				if(is_object($hddtotal)){
 					$hddtotal->event($dataresult['hddtotal']);
 				}
+
 				$hddused = $this->getCmd(null,'hddused');
 				if(is_object($hddused)){
 					$hddused->event($dataresult['hddused']);
 				}
-				$hddpourcused = $this->getCmd(null,'hddpourcused');
-				if(is_object($hddpourcused)){
-					$hddpourcused->event($dataresult['hddpourcused']);
+
+				$hddused_pourc = $this->getCmd(null,'hddpourcused');
+				if(is_object($hddused_pourc)){
+					$hddused_pourc->event($dataresult['hddpourcused']);
 				}
+
 				if($this->getConfiguration('synology') == '1' && $SynoV2Visible == 'OK' && $this->getConfiguration('synologyv2') == '1'){
 					$hddtotalv2 = $this->getCmd(null,'hddtotalv2');
 					if(is_object($hddtotalv2)){
@@ -1345,35 +1417,42 @@ class Monitoring extends eqLogic {
 					if(is_object($hddusedv2)){
 						$hddusedv2->event($dataresultv2['hddusedv2']);
 					}
-					$hddpourcusedv2 = $this->getCmd(null,'hddpourcusedv2');
-					if(is_object($hddpourcusedv2)){
-						$hddpourcusedv2->event($dataresultv2['hddpourcusedv2']);
+					$hddusedv2_pourc = $this->getCmd(null,'hddpourcusedv2');
+					if(is_object($hddusedv2_pourc)){
+						$hddusedv2_pourc->event($dataresultv2['hddpourcusedv2']);
 					}
 				}
+
 				$cpu = $this->getCmd(null,'cpu');
 				if(is_object($cpu)){
 					$cpu->event($dataresult['cpu']);
 				}
+
 				$cpu_temp = $this->getCmd(null,'cpu_temp');
 				if(is_object($cpu_temp)){
 					$cpu_temp->event($dataresult['cpu_temp']);
 				}
+
 				$cnx_ssh = $this->getCmd(null,'cnx_ssh');
 				if(is_object($cnx_ssh)){
 					$cnx_ssh->event($dataresult['cnx_ssh']);
 				}
+
 				$Mempourc = $this->getCmd(null,'Mempourc');
 				if(is_object($Mempourc)){
 					$Mempourc->event($dataresult['Mempourc']);
 				}
+
 				$Swappourc = $this->getCmd(null,'Swappourc');
 				if(is_object($Swappourc)){
 					$Swappourc->event($dataresult['Swappourc']);
 				}
+
 				$perso1 = $this->getCmd(null,'perso1');
 				if(is_object($perso1)){
 					$perso1->event($dataresult['perso1']);
 				}
+
 				$perso2 = $this->getCmd(null,'perso2');
 				if(is_object($perso2)){
 					$perso2->event($dataresult['perso2']);
@@ -1397,6 +1476,7 @@ class Monitoring extends eqLogic {
 			}
 		}
 	}
+
 	function getCaseAction($paramaction) {
 		if ($this->getConfiguration('maitreesclave') == 'deporte' && $this->getIsEnable()){
 
@@ -1409,59 +1489,61 @@ class Monitoring extends eqLogic {
 			if (!$sshconnection = new SSH2($ip,$port)) {
 				log::add('Monitoring', 'error', 'connexion SSH KO pour '.$equipement);
 				$cnx_ssh = 'KO';
-			}else{
+			}
+			else {
 				if (!$sshconnection->login($user, $pass)){
 					log::add('Monitoring', 'error', 'Authentification SSH KO pour '.$equipement);
 					$cnx_ssh = 'KO';
-				}else{
+				}
+				else {
 					switch ($paramaction) {
 						case "reboot":
-						$paramaction =
-//								$Rebootcmd = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
-						$Rebootcmd = "sudo reboot >/dev/null & reboot >/dev/null";
-						$Rebootoutput = $sshconnection->exec($Rebootcmd);
-						$Reboot = $Rebootoutput;
-						log::add('Monitoring','debug','lancement commande deporte reboot ' . $this->getHumanName());
-						break;
+							$paramaction =
+							// $Rebootcmd = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
+							$Rebootcmd = "sudo reboot >/dev/null & reboot >/dev/null";
+							$Reboot = $sshconnection->exec($Rebootcmd);
+							log::add('Monitoring','debug','lancement commande deporte reboot ' . $this->getHumanName());
+							break;
 						case "poweroff":
-						$paramaction =
-//								$poweroffcmd = "sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null";
-						$poweroffcmd = "sudo poweroff >/dev/null & poweroff  >/dev/null";
-						$poweroffoutput = $sshconnection->exec($poweroffcmd);
-						$poweroff = $poweroffoutput;
-						log::add('Monitoring','debug','lancement commande deporte poweroff' . $this->getHumanName());
-						break;
+							$paramaction =
+							// $poweroffcmd = "sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null";
+							$poweroffcmd = "sudo poweroff >/dev/null & poweroff  >/dev/null";
+							$poweroff = $sshconnection->exec($poweroffcmd);
+							log::add('Monitoring','debug','lancement commande deporte poweroff' . $this->getHumanName());
+							break;
 					}
 				}
 			}
-		}elseif($this->getConfiguration('maitreesclave') == 'local' && $this->getIsEnable()){
+		}
+		elseif ($this->getConfiguration('maitreesclave') == 'local' && $this->getIsEnable()) {
 			if($this->getConfiguration('synology') == '1'){
 				switch ($paramaction) {
 					case "reboot":
-					$paramaction =
-					$cmdreboot = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
-					exec($cmdreboot);
-					log::add('Monitoring','debug','lancement commande local reboot ' . $this->getHumanName());
-					break;
+						$paramaction =
+						$cmdreboot = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
+						exec($cmdreboot);
+						log::add('Monitoring','debug','lancement commande local reboot ' . $this->getHumanName());
+						break;
 					case "poweroff":
-					$paramaction =
-					exec('sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null');
-					log::add('Monitoring','debug','lancement commande local poweroff ' . $this->getHumanName());
+						$paramaction =
+						exec('sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null');
+						log::add('Monitoring','debug','lancement commande local poweroff ' . $this->getHumanName());
 					break;
 				}
-			}else{
+			}
+			else {
 				switch ($paramaction) {
 					case "reboot":
-					$paramaction =
-					$cmdreboot = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
-					exec($cmdreboot);
-					log::add('Monitoring','debug','lancement commande local reboot ' . $this->getHumanName());
-					break;
+						$paramaction =
+						$cmdreboot = "sudo shutdown -r now >/dev/null & shutdown -r now >/dev/null";
+						exec($cmdreboot);
+						log::add('Monitoring','debug','lancement commande local reboot ' . $this->getHumanName());
+						break;
 					case "poweroff":
-					$paramaction =
-					exec('sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null');
-					log::add('Monitoring','debug','lancement commande local poweroff ' . $this->getHumanName());
-					break;
+						$paramaction =
+						exec('sudo shutdown -P now >/dev/null & shutdown -P now >/dev/null');
+						log::add('Monitoring','debug','lancement commande local poweroff ' . $this->getHumanName());
+						break;
 				}
 			}
 		}
@@ -1469,8 +1551,6 @@ class Monitoring extends eqLogic {
 }
 
 class MonitoringCmd extends cmd {
-
-
 	/* * *************************Attributs****************************** */
 	public static $_widgetPossibility = array('custom' => false);
 
